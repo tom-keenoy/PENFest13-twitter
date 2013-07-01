@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-language" content="en">
+    <style>
+      body{
+        background-color:#000;
+      }
+      #wrapper{
+        width:1200px;
+        height:700px;
+        margin:auto;
+        position:relative;
+      }
+      div.tweet{
+        width:1600px;
+        position:absolute;
+        opacity:.5;
+        font-size:90px;
+        -webkit-transform: scale(.5);
+      }
+      a{
+        text-decoration:none;
+      }
+      div.active-tweet{
+        opacity:1;
+        color:#FF0;
+        -webkit-animation-name: example;
+        -webkit-animation-duration: 3s;
+        -webkit-animation--timing-function: ease-out;
+      }
+    
+      div.inactive-tweet{
+        -webkit-animation-name: inactive-tweet;
+        -webkit-animation-duration: 3s;
+        color: #999;
+        -webkit-transform:scale(.25);
+      }
+      div.inactive-tweet a{
+        -webkit-animation-name: inactive-tweet;
+        -webkit-animation-duration: 3s;
+        color: #999;
+      }
+    
+      div.inactive-tweet a.hashtag.pengala{
+        -webkit-animation-name: inactive-tweet-pengala-hash;
+        -webkit-animation-duration: 3s;
+        color: #999;
+      }
+    
+      div.inactive-tweet a.hashtag.sheesnotfree{
+        -webkit-animation-name: inactive-tweet-sheesnotfree-hash;
+        -webkit-animation-duration: 3s;
+        color: #999;
+      }
+
+      div.active-tweet a{
+        color:#FF0;
+      }
+    
+      div.active-tweet a.hashtag.pengala{
+        color:#3CC;
+      }
+    
+      div.active-tweet a.hashtag.sheesnotfree{
+        color:#F00;
+      }
+    
+      /* This is the animation code. */
+      @-webkit-keyframes example {
+         /*0% { transform: scale(2.0); }
+         100%   { transform: scale(1.0); }*/
+         0% {-webkit-transform:scale(5);
+           opacity:0;
+           color:#fff;
+         }
+         100% {-webkit-transform:scale(.5);
+         opacity:1;
+         color:yellow;
+         }
+      }
+    
+      @-webkit-keyframes inactive-tweet {
+        0% { color: yellow;
+          -webkit-transform:scale(.5)}
+        100% { color: #999;
+          -webkit-transform:scale(.25)}
+      }
+    
+      @-webkit-keyframes inactive-tweet-pengala-hash {
+        0% { color: #3CC;}
+        100% { color: #999;}
+      }
+    
+      @-webkit-keyframes inactive-tweet-sheesnotfree-hash {
+        0% { color: #F00;}
+        100% { color: #999;}
+      }
+    
+    </style>
+    
+    </style>
+  
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js"></script>
+    <script>// local fallback in case google CDN isn't available
+    if (!window.jQuery) {
+        document.write('<script src="../gala-twitter/jquery-1.9.1.min.js"><\/script>');
+    }
+    </script>
+    <script src="../gala-twitter/jquery.easing.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js"></script>
+    <script src="../gala-twitter/jquery-ui/ui/jquery.ui.effect-scale.js"></script>
+    <script src="twitterlib/twitterlib.js"></script>
+  </head>
+  <body>
+    <div id="wrapper">
+      <div id="debug"></div>
+    </div>
+    <script>
+    function log(s) {
+      // need to rewrite this section to append nodes instead of rewriting innerHTML
+      //document.getElementById('debug').innerHTML += '<p>' + s + '</p>';
+      $('#debug').append('<div>' + s + '</div>');
+    }
+    
+    // -------------------------
+    
+    // script config
+    
+    var ptw = {}; // creates a namespace to keep vars out of global scope
+    
+    // GENERAL NOTE ON TIME: time stuff is measured in milliseconds, so 10000 = 10 seconds, 60000 = 60 seconds = 1 minute, 480000 = 480 seconds = 8 minutes
+    
+    ptw.howManyTweets = 100; // how many tweets should be loaded by the initial poll. For live, I'd suggest 100, which is the max allowable by Twitter, or whatever the seeded amount is, plus a few
+    ptw.loopCount = 0; // internally used variable for looping through the tweets. don't mess with this.
+    ptw.timeBetweenTweets = 10000; // controls how fast the tweets come. Need to replace this with a function to analyze the queue and adjust timing accordingly
+    ptw.timeBetweenPolls = 30000; // controls how often we call Twitter for new tweets
+    ptw.tweetBgLifespan = 480000; // how long tweets should live in the background before they fade out
+    ptw.activeTweet = null; // internally used variable for looping through the tweets. don't mess with this.
+    ptw.tweetTimer = null; // placeholder for the tweet animation timer function
+    ptw.pollTimer = null; // placeholder for the twitter polling timer function
+    ptw.since_id = null; // placeholder for the last ID grabbed, which will be referenced in later polling so we don't duplicate tweets
+    ptw.since = '2013-04-30'; // the date we start our search. Should be set to '2013-04-30' when live
+    
+    
+    // -------------------------
+    
+    // this is the loop to animate tweets. It is NOT the ongoing polling function. That function is pollTwitter()
+    function tweetLoop(){
+      var theTweet;
+      if(tweetqueue.length > 0){
+        theTweet = tweetqueue.shift(); // grabs the first tweet in the queue
+        seedqueue.push(theTweet);
+        //console.log("I got this from the tweet queue");
+      } else {
+        theTweet = seedqueue.shift(); // grabs the first tweet in the queue
+        seedqueue.push(theTweet);
+        //console.log("I got this from the seed queue");
+      }; // sends it back to the end of the queue
+      //console.log(theTweet);
+      var tweetHtmlId = "#"+theTweet.id; // identifies the tweet ID as a string for jquery to reference
+      if($(tweetHtmlId)){ // checks to see if it's already on the screen...
+        $(tweetHtmlId).remove(); // ... and removes it if so
+      }
+      log(twitterlib.renderPEN(theTweet)); // Renders the tweet in HTML and adds to the DOM
+      $(tweetHtmlId).css("left",(1280/2)-750); // sets the x position
+      $(tweetHtmlId).css("top",125); // sets the y position
+      $(tweetHtmlId).addClass("active-tweet"); 
+      if(ptw.activeTweet != null){ // a little conditional logic to make sure it doesn't break the first time out
+        var me = $(ptw.activeTweet); // just some shorthand
+        me.animate({ 
+          "top":$(ptw.activeTweet).data("ypos"), // uses the HTML5 data- attributes set in the renderPen function to set new y position
+          "left":$(ptw.activeTweet).data("xpos") // uses the HTML5 data- attributes set in the renderPen function to set new x position
+        }, 5000, 'easeOutQuint');
+        me.animate({
+          opacity:0
+        },ptw.tweetBgLifespan, 'linear', function() {
+          // Animation complete.
+          $(this).remove();
+        })
+        me.removeClass("active-tweet");
+        me.addClass("inactive-tweet");
+      }
+      ptw.activeTweet = tweetHtmlId;
+    }
+    
+    // -------------------------
+
+    function checkHashTags(haystack,needle){
+      var found = new Boolean(false);
+      return found;
+    }
+    // -------------------------
+    
+    // this is the ongoing polling function
+    function pollTwitter(){
+      //console.log("polling twitter"); // debug space
+      // the real stuff
+      //console.log("since_id:" + ptw.since_id);
+      twitterlib.search('#poetry', function (tweets) {
+        var newTweetsMaxId = new Number();
+        newTweetsMaxId = parseInt(ptw.since_id, 10);
+        for (var i = 0; i < tweets.length; i++) {
+          var theTweet = tweets[i];
+          if (theTweet.id > ptw.since_id){
+            //console.log("tweet id is: "+theTweet.id);
+            //console.log("since id is: "+ptw.since_id);
+            if(theTweet.from_user.toLowerCase() == "penamerican"){
+              tweetqueue.unshift(theTweet);
+              //console.log("just unshifted: "+theTweet.id);
+            } else {
+              tweetqueue.push(theTweet);
+              //console.log("just pushed: "+theTweet.id);
+            } 
+            if(theTweet.id > newTweetsMaxId){
+              //console.log("I just changed theTweetId to newTweetsMaxId")
+              newTweetsMaxId = theTweet.id;
+            }else{
+              //console.log("nothing changed this time.")
+            }
+          }
+        }
+        //console.log(tweetqueue);
+        ptw.since_id = newTweetsMaxId;
+      })
+    }
+
+    // -------------------------
+    
+    ptw.count = 0
+    ptw.limit = 1;
+    var tweetqueue = [];
+    var seedqueue = [];
+
+    // -------------------------
+    $(function(){
+      twitterlib.search('#poetry', { limit: 100 }, function (tweets) {
+        ptw.count++;
+        for (var i = 0; i < tweets.length; i++) {
+          var theTweet = tweets[i];
+          seedqueue.push(theTweet);
+          if(ptw.since_id == null){
+            ptw.since_id = theTweet.id;
+            //console.log("last tweet is id (first pass) " + ptw.since_id);
+          }else{
+            if (theTweet.id > ptw.since_id){
+              ptw.since_id = theTweet.id;
+              //console.log("last tweet is id (ongoing)" + ptw.since_id);
+            }
+          }
+        }
+        tweetLoop();
+        ptw.tweetTimer = window.setInterval(tweetLoop, ptw.timeBetweenTweets);
+        ptw.pollTimer = window.setInterval(pollTwitter, ptw.timeBetweenPolls);
+      })}
+    );
+    </script>
+  </body>
+</html>
